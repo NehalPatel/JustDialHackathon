@@ -1,0 +1,24 @@
+node_modules
+frontend/node_modules
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+coverage.xml
+*.log
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
