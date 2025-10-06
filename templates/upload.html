@@ -1,0 +1,473 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Video - Video Auto-Moderation System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4 mb-3">
+            <i class="fas fa-cloud-upload-alt me-3"></i>
+            Upload Video
+        </h1>
+        <p class="lead text-muted">Upload your video for automated content moderation analysis.</p>
+    </div>
+</div>
+
+<!-- Upload Form -->
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-video me-2"></i>
+                    Video Upload & Configuration
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="uploadForm" enctype="multipart/form-data">
+                    <!-- File Upload Area -->
+                    <div class="mb-4">
+                        <label class="form-label fw-bold">Select Video File</label>
+                        <div class="upload-area" id="uploadArea">
+                            <div class="upload-content">
+                                <i class="fas fa-cloud-upload-alt fa-3x text-primary mb-3"></i>
+                                <h5>Drag & Drop your video here</h5>
+                                <p class="text-muted mb-3">or click to browse files</p>
+                                <input type="file" id="videoFile" name="video" accept=".mp4,.mov,.avi,.wmv,.mkv,.flv" class="d-none">
+                                <button type="button" class="btn btn-outline-primary" onclick="document.getElementById('videoFile').click()">
+                                    <i class="fas fa-folder-open me-2"></i>
+                                    Browse Files
+                                </button>
+                                <div class="mt-3">
+                                    <small class="text-muted">
+                                        Supported formats: MP4, MOV, AVI, WMV, MKV, FLV<br>
+                                        Maximum file size: 500MB
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- File Info -->
+                        <div id="fileInfo" class="mt-3 d-none">
+                            <div class="alert alert-info">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-file-video fa-2x me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h6 class="mb-1" id="fileName"></h6>
+                                        <small class="text-muted" id="fileDetails"></small>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Watermark Configuration -->
+                    <div class="mb-4">
+                        <label for="watermark" class="form-label fw-bold">Watermark Detection</label>
+                        <input type="text" class="form-control" id="watermark" name="watermark" 
+                               placeholder="Enter watermark text to detect (optional)">
+                        <div class="form-text">
+                            If specified, the system will check for this watermark in the video content.
+                        </div>
+                    </div>
+
+                    <!-- Advanced Configuration -->
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <label class="form-label fw-bold mb-0">Advanced Configuration</label>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                    data-bs-toggle="collapse" data-bs-target="#advancedConfig">
+                                <i class="fas fa-cog me-1"></i>
+                                Configure
+                            </button>
+                        </div>
+                        
+                        <div class="collapse" id="advancedConfig">
+                            <div class="card card-body bg-light">
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label for="nudityThreshold" class="form-label">Nudity Sensitivity</label>
+                                        <select class="form-select" id="nudityThreshold" name="nudity_sensitivity">
+                                            <option value="lenient">Lenient</option>
+                                            <option value="moderate" selected>Moderate</option>
+                                            <option value="strict">Strict</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="fraudThreshold" class="form-label">Fraud Sensitivity</label>
+                                        <select class="form-select" id="fraudThreshold" name="fraud_sensitivity">
+                                            <option value="lenient">Lenient</option>
+                                            <option value="moderate">Moderate</option>
+                                            <option value="strict" selected>Strict</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label for="copyrightThreshold" class="form-label">Copyright Threshold (%)</label>
+                                        <input type="range" class="form-range" id="copyrightThreshold" 
+                                               name="copyright_threshold" min="0" max="100" value="60">
+                                        <div class="d-flex justify-content-between">
+                                            <small>0%</small>
+                                            <small id="copyrightValue">60%</small>
+                                            <small>100%</small>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Additional Options</label>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="rejectPoorQuality" 
+                                                   name="reject_poor_quality">
+                                            <label class="form-check-label" for="rejectPoorQuality">
+                                                Reject poor quality videos
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="blurFaces" 
+                                                   name="blur_faces" checked>
+                                            <label class="form-check-label" for="blurFaces">
+                                                Blur detected faces
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="blurViolence" 
+                                                   name="blur_violence" checked>
+                                            <label class="form-check-label" for="blurViolence">
+                                                Blur violent content
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                            <i class="fas fa-shield-alt me-2"></i>
+                            Analyze Video
+                            <div class="loading-spinner spinner-border spinner-border-sm ms-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Modal -->
+<div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-cog fa-spin me-2"></i>
+                    Analyzing Video
+                </h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                
+                <div class="progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         id="uploadProgress" style="width: 0%"></div>
+                </div>
+                
+                <div id="progressText" class="text-center">
+                    <p class="mb-1">Uploading video...</p>
+                    <small class="text-muted">This may take a few minutes depending on file size.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-chart-line me-2"></i>
+                    Analysis Results
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="resultsContent">
+                <!-- Results will be populated here -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="uploadAnother()">
+                    <i class="fas fa-plus me-2"></i>
+                    Upload Another
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    let selectedFile = null;
+    const uploadArea = document.getElementById('uploadArea');
+    const fileInput = document.getElementById('videoFile');
+    const fileInfo = document.getElementById('fileInfo');
+    const uploadForm = document.getElementById('uploadForm');
+    const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
+    const resultsModal = new bootstrap.Modal(document.getElementById('resultsModal'));
+
+    // Drag and drop functionality
+    uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+    });
+
+    uploadArea.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+    });
+
+    uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileSelect(files[0]);
+        }
+    });
+
+    uploadArea.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFileSelect(e.target.files[0]);
+        }
+    });
+
+    // Copyright threshold slider
+    document.getElementById('copyrightThreshold').addEventListener('input', (e) => {
+        document.getElementById('copyrightValue').textContent = e.target.value + '%';
+    });
+
+    function handleFileSelect(file) {
+        // Validate file type
+        const allowedTypes = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv', 'video/x-matroska', 'video/x-flv'];
+        if (!allowedTypes.includes(file.type)) {
+            showAlert('Please select a valid video file (MP4, MOV, AVI, WMV, MKV, FLV)', 'danger');
+            return;
+        }
+
+        // Validate file size (500MB limit)
+        const maxSize = 500 * 1024 * 1024; // 500MB in bytes
+        if (file.size > maxSize) {
+            showAlert('File size must be less than 500MB', 'danger');
+            return;
+        }
+
+        selectedFile = file;
+        
+        // Show file info
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileDetails').textContent = 
+            `${formatFileSize(file.size)} • ${file.type}`;
+        
+        fileInfo.classList.remove('d-none');
+        uploadArea.style.display = 'none';
+    }
+
+    function clearFile() {
+        selectedFile = null;
+        fileInput.value = '';
+        fileInfo.classList.add('d-none');
+        uploadArea.style.display = 'block';
+    }
+
+    // Form submission
+    uploadForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        if (!selectedFile) {
+            showAlert('Please select a video file', 'warning');
+            return;
+        }
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.classList.add('loading');
+        submitBtn.disabled = true;
+
+        // Show progress modal
+        progressModal.show();
+        
+        try {
+            const formData = new FormData();
+            formData.append('video', selectedFile);
+            formData.append('watermark', document.getElementById('watermark').value);
+            
+            // Build configuration object
+            const config = {
+                nudity_sensitivity: document.getElementById('nudityThreshold').value,
+                fraud_sensitivity: document.getElementById('fraudThreshold').value,
+                copyright_threshold: parseInt(document.getElementById('copyrightThreshold').value),
+                reject_poor_quality: document.getElementById('rejectPoorQuality').checked,
+                blur_faces: document.getElementById('blurFaces').checked,
+                blur_violence: document.getElementById('blurViolence').checked
+            };
+            
+            formData.append('config', JSON.stringify(config));
+
+            // Simulate upload progress
+            let progress = 0;
+            const progressBar = document.getElementById('uploadProgress');
+            const progressText = document.getElementById('progressText');
+            
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 15;
+                if (progress > 90) progress = 90;
+                progressBar.style.width = progress + '%';
+                
+                if (progress < 30) {
+                    progressText.innerHTML = '<p class="mb-1">Uploading video...</p><small class="text-muted">Transferring file to server.</small>';
+                } else if (progress < 60) {
+                    progressText.innerHTML = '<p class="mb-1">Processing video...</p><small class="text-muted">Analyzing content for violations.</small>';
+                } else {
+                    progressText.innerHTML = '<p class="mb-1">Finalizing analysis...</p><small class="text-muted">Generating moderation report.</small>';
+                }
+            }, 500);
+
+            const response = await fetch('/moderation/api/analyze', {
+                method: 'POST',
+                body: formData
+            });
+
+            clearInterval(progressInterval);
+            progressBar.style.width = '100%';
+
+            const result = await response.json();
+            
+            setTimeout(() => {
+                progressModal.hide();
+                
+                if (result.success) {
+                    showResults(result);
+                } else {
+                    showAlert(result.detail || 'Analysis failed', 'danger');
+                }
+                
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+            }, 1000);
+
+        } catch (error) {
+            progressModal.hide();
+            console.error('Upload error:', error);
+            showAlert('Upload failed. Please try again.', 'danger');
+            
+            submitBtn.classList.remove('loading');
+            submitBtn.disabled = false;
+        }
+    });
+
+    function showResults(result) {
+        const resultsContent = document.getElementById('resultsContent');
+        
+        const decisionClass = result.decision === 'approved' ? 'success' : 'danger';
+        const decisionIcon = result.decision === 'approved' ? 'check-circle' : 'times-circle';
+        
+        resultsContent.innerHTML = `
+            <div class="text-center mb-4">
+                <div class="alert alert-${decisionClass} d-inline-block px-4 py-3">
+                    <i class="fas fa-${decisionIcon} fa-2x mb-2"></i>
+                    <h4 class="mb-0">${result.decision.toUpperCase()}</h4>
+                </div>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="fas fa-percentage me-2"></i>
+                                Confidence Score
+                            </h6>
+                            <div class="progress mb-2">
+                                <div class="progress-bar bg-${getConfidenceColor(result.confidence)}" 
+                                     style="width: ${(result.confidence * 100).toFixed(0)}%"></div>
+                            </div>
+                            <p class="mb-0">${(result.confidence * 100).toFixed(1)}%</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                <i class="fas fa-clock me-2"></i>
+                                Processing Time
+                            </h6>
+                            <p class="mb-0">${result.processing_time ? formatDuration(result.processing_time) : 'N/A'}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            ${result.violations && result.violations.length > 0 ? `
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Detected Violations
+                    </h6>
+                </div>
+                <div class="card-body">
+                    ${result.violations.map(violation => {
+                        const violationType = typeof violation === 'object' ? violation.type : violation;
+                        const violationText = typeof violation === 'object' ? 
+                            `${violation.type} (${(violation.score * 100).toFixed(0)}%)` : 
+                            violation;
+                        return `<span class="badge bg-warning me-2 mb-2">${violationText}</span>`;
+                    }).join('')}
+                </div>
+            </div>
+            ` : ''}
+            
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Analysis Reasoning
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">${result.reasoning || 'No specific reasoning provided.'}</p>
+                </div>
+            </div>
+        `;
+        
+        resultsModal.show();
+    }
+
+    function uploadAnother() {
+        resultsModal.hide();
+        clearFile();
+        uploadForm.reset();
+        document.getElementById('copyrightValue').textContent = '60%';
+    }
+</script>
+{% endblock %}

@@ -1,136 +1,289 @@
 import os
+import json
+import uuid
 from datetime import datetime
-from typing import Optional
-from fastapi import APIRouter, Depends, File, UploadFile, Form, HTTPException
+from typing import Optional, Dict, List
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.templating import Jinja2Templates
 
-from .auth import get_current_user
-from .db import videos, plugin_settings
+from .moderation_engine import ModerationEngine
+from .database import VideoDatabase
 
-router = APIRouter(prefix="/api/v1/moderation", tags=["moderation"])
+router = APIRouter(prefix="/moderation", tags=["moderation"])
+templates = Jinja2Templates(directory="templates")
+
+# Initialize components
+moderation_engine = ModerationEngine()
+video_db = VideoDatabase()
 
 UPLOAD_DIR = os.path.join(os.getcwd(), "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-def analyze_stub(file_path: str, watermark: Optional[str], config: dict):
-    lower = file_path.lower()
-    nudity_score = 0.2
-    copyright_score = 0.2
-    fraud_score = 0.2
-    blur = False
-    if "nsfw" in lower or "nude" in lower:
-        nudity_score = 0.9
-    if "pirated" in lower or "copyright" in lower:
-        copyright_score = 0.85
-    if "scam" in lower or "fraud" in lower:
-        fraud_score = 0.8
-    if watermark and watermark.lower() in ["platformx", "justdial"]:
-        blur = True
-    return {
-        "nudity": {"score": nudity_score},
-        "copyright": {"score": copyright_score},
-        "fraud": {"score": fraud_score},
-        "blur": blur
-    }
+# Web Interface Routes
+@router.get("/", response_class=HTMLResponse)
+async def moderation_dashboard(request: Request):
+    """Main dashboard for video moderation system."""
+    stats = moderation_engine.get_moderation_statistics()
+    recent_decisions = moderation_engine.get_recent_decisions(5)
+    
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "stats": stats,
+        "recent_decisions": recent_decisions
+    })
 
-def decide(analysis: dict, config: dict):
-    nudity_limit = {"lenient": 0.95, "moderate": 0.8, "strict": 0.6}.get(config.get("nuditySensitivity", "moderate"), 0.8)
-    fraud_limit = {"lenient": 0.95, "moderate": 0.8, "strict": 0.6}.get(config.get("fraudSensitivity", "moderate"), 0.8)
-    copyright_limit = config.get("copyrightThreshold", 50) / 100.0
-    reasons = []
-    if analysis["nudity"]["score"] >= nudity_limit:
-        reasons.append("nudity")
-    if analysis["fraud"]["score"] >= fraud_limit:
-        reasons.append("fraud")
-    if analysis["copyright"]["score"] >= copyright_limit:
-        reasons.append("copyright")
-    decision = "rejected" if reasons else "approved"
-    return decision, ", ".join(reasons)
+@router.get("/upload", response_class=HTMLResponse)
+async def upload_page(request: Request):
+    """Video upload page."""
+    return templates.TemplateResponse("upload.html", {"request": request})
 
-@router.post("/analyze")
-async def analyze(
-    user = Depends(get_current_user),
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request):
+    """Configuration settings page."""
+    current_config = moderation_engine._get_default_moderation_config()
+    return templates.TemplateResponse("settings.html", {
+        "request": request,
+        "config": current_config
+    })
+
+@router.get("/results", response_class=HTMLResponse)
+async def results_page(request: Request):
+    """Results and analytics page."""
+    all_results = video_db.get_all_results()
+    stats = moderation_engine.get_moderation_statistics()
+    
+    return templates.TemplateResponse("results.html", {
+        "request": request,
+        "results": all_results,
+        "stats": stats
+    })
+
+# API Routes
+@router.post("/api/analyze")
+async def analyze_video(
     video: UploadFile = File(...),
     watermark: Optional[str] = Form(None),
     config: Optional[str] = Form(None),
 ):
-    # Save file
-    file_name = f"{int(datetime.utcnow().timestamp())}-{video.filename}"
-    file_path = os.path.join(UPLOAD_DIR, file_name)
-    with open(file_path, "wb") as f:
-        f.write(await video.read())
-
-    # Resolve config and default settings
-    user_settings = plugin_settings.find_one({"owner": user["id"]})
-    cfg = {"nuditySensitivity": "moderate", "fraudSensitivity": "moderate", "copyrightThreshold": 50}
-    if user_settings:
-        cfg.update({
-            "nuditySensitivity": user_settings.get("nuditySensitivity", cfg["nuditySensitivity"]),
-            "fraudSensitivity": user_settings.get("fraudSensitivity", cfg["fraudSensitivity"]),
-            "copyrightThreshold": user_settings.get("copyrightThreshold", cfg["copyrightThreshold"]),
-        })
-    if config:
-        import json
-        try:
-            cfg.update(json.loads(config))
-        except Exception:
-            pass
-
-    analysis = analyze_stub(file_path, watermark, cfg)
-    decision, reason = decide(analysis, cfg)
-    doc = {
-        "owner": user["id"],
-        "filePath": file_path,
-        "originalName": video.filename,
-        "mimeType": video.content_type,
-        "sizeBytes": None,
-        "watermark": watermark,
-        "config": cfg,
-        "analysis": analysis,
-        "decision": decision,
-        "reason": reason,
-        "logs": [{"message": f"Decision: {decision} - {reason}", "at": datetime.utcnow()}],
-        "createdAt": datetime.utcnow(),
-    }
-    inserted = videos.insert_one(doc)
-    return {"id": str(inserted.inserted_id), "decision": decision, "reason": reason, "analysis": analysis}
-
-@router.get("/{id}")
-def get_result(id: str, user = Depends(get_current_user)):
-    from bson import ObjectId
+    """
+    Analyze uploaded video for content violations.
+    """
     try:
-        oid = ObjectId(id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid id")
-    doc = videos.find_one({"_id": oid, "owner": user["id"]})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Not found")
-    doc["id"] = str(doc.pop("_id"))
-    return doc
+        # Validate file type
+        if not video.filename:
+            raise HTTPException(status_code=400, detail="No file provided")
+        
+        file_ext = os.path.splitext(video.filename)[1].lower()
+        supported_formats = ['.mp4', '.mov', '.avi', '.wmv', '.mkv', '.flv']
+        
+        if file_ext not in supported_formats:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file format. Supported formats: {', '.join(supported_formats)}"
+            )
+        
+        # Save uploaded file
+        file_id = str(uuid.uuid4())
+        file_name = f"{file_id}_{video.filename}"
+        file_path = os.path.join(UPLOAD_DIR, file_name)
+        
+        with open(file_path, "wb") as f:
+            content = await video.read()
+            f.write(content)
+        
+        # Parse configuration
+        moderation_config = moderation_engine._get_default_moderation_config()
+        if config:
+            try:
+                custom_config = json.loads(config)
+                moderation_config.update(custom_config)
+            except json.JSONDecodeError:
+                pass  # Use default config if parsing fails
+        
+        # Perform moderation analysis
+        result = moderation_engine.moderate_video(file_path, moderation_config)
+        
+        # Add file metadata
+        result.update({
+            "file_id": file_id,
+            "original_filename": video.filename,
+            "file_size": len(content),
+            "content_type": video.content_type,
+            "watermark": watermark
+        })
+        
+        # Store result in database
+        video_db.store_result(result)
+        
+        # Clean up file if rejected (optional)
+        if result["decision"] == "rejected" and moderation_config.get("delete_rejected_files", False):
+            try:
+                os.remove(file_path)
+            except:
+                pass  # Ignore cleanup errors
+        
+        return JSONResponse(content={
+            "success": True,
+            "file_id": file_id,
+            "decision": result["decision"],
+            "confidence": result["confidence"],
+            "reasoning": result["reasoning"],
+            "violations": result["violations"],
+            "processing_time": result["processing_time"]
+        })
+        
+    except Exception as e:
+        # Clean up file on error
+        if 'file_path' in locals() and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass
+        
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
-@router.get("")
-def list_mod(user = Depends(get_current_user), decision: Optional[str] = None):
-    q = {"owner": user["id"]}
-    if decision:
-        q["decision"] = decision
-    items = []
-    for d in videos.find(q).sort("createdAt", -1).limit(100):
-        d["id"] = str(d.pop("_id"))
-        items.append(d)
-    return items
+@router.get("/api/result/{file_id}")
+async def get_analysis_result(file_id: str):
+    """Get detailed analysis result for a specific file."""
+    result = video_db.get_result_by_id(file_id)
+    
+    if not result:
+        raise HTTPException(status_code=404, detail="Result not found")
+    
+    return JSONResponse(content=result)
 
-@router.post("/settings")
-def save_settings(
-    user = Depends(get_current_user),
-    nuditySensitivity: Optional[str] = Form(None),
-    fraudSensitivity: Optional[str] = Form(None),
-    copyrightThreshold: Optional[int] = Form(None),
+@router.get("/api/results")
+async def list_results(
+    decision: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
 ):
-    doc = {
-        "owner": user["id"],
-        "nuditySensitivity": nuditySensitivity or "moderate",
-        "fraudSensitivity": fraudSensitivity or "moderate",
-        "copyrightThreshold": (copyrightThreshold if isinstance(copyrightThreshold, int) else 50),
-        "updatedAt": datetime.utcnow(),
-    }
-    plugin_settings.update_one({"owner": user["id"]}, {"$set": doc}, upsert=True)
-    return doc
+    """List analysis results with optional filtering."""
+    results = video_db.get_results(
+        decision_filter=decision,
+        limit=limit,
+        offset=offset
+    )
+    
+    return JSONResponse(content={
+        "results": results,
+        "total": len(results)
+    })
+
+@router.get("/api/statistics")
+async def get_statistics():
+    """Get moderation statistics and metrics."""
+    stats = moderation_engine.get_moderation_statistics()
+    return JSONResponse(content=stats)
+
+@router.post("/api/settings")
+async def update_settings(
+    nudity_sensitivity: Optional[str] = Form("moderate"),
+    copyright_threshold: Optional[int] = Form(60),
+    fraud_sensitivity: Optional[str] = Form("strict"),
+    reject_poor_quality: Optional[bool] = Form(False),
+    blur_faces: Optional[bool] = Form(True),
+    blur_violence: Optional[bool] = Form(True),
+    delete_rejected_files: Optional[bool] = Form(False)
+):
+    """Update moderation configuration settings."""
+    try:
+        new_config = {
+            "nudity_sensitivity": nudity_sensitivity,
+            "copyright_threshold": copyright_threshold,
+            "fraud_sensitivity": fraud_sensitivity,
+            "reject_poor_quality": reject_poor_quality,
+            "blur_faces": blur_faces,
+            "blur_violence": blur_violence,
+            "delete_rejected_files": delete_rejected_files
+        }
+        
+        updated_config = moderation_engine.update_config(new_config)
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Settings updated successfully",
+            "config": updated_config
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+@router.get("/api/config")
+async def get_current_config():
+    """Get current moderation configuration."""
+    config = moderation_engine._get_default_moderation_config()
+    return JSONResponse(content=config)
+
+@router.delete("/api/result/{file_id}")
+async def delete_result(file_id: str):
+    """Delete a specific analysis result and associated file."""
+    try:
+        result = video_db.get_result_by_id(file_id)
+        if not result:
+            raise HTTPException(status_code=404, detail="Result not found")
+        
+        # Delete file if it exists
+        if "video_path" in result:
+            try:
+                os.remove(result["video_path"])
+            except:
+                pass  # Ignore file deletion errors
+        
+        # Delete from database
+        video_db.delete_result(file_id)
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "Result deleted successfully"
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete result: {str(e)}")
+
+@router.post("/api/export")
+async def export_results(format: str = Form("json")):
+    """Export analysis results in specified format."""
+    try:
+        if format.lower() == "json":
+            data = moderation_engine.export_decisions()
+            return JSONResponse(content={
+                "success": True,
+                "data": data,
+                "format": format
+            })
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported export format")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+@router.post("/api/clear-history")
+async def clear_history():
+    """Clear all moderation history."""
+    try:
+        moderation_engine.clear_history()
+        video_db.clear_all_results()
+        
+        return JSONResponse(content={
+            "success": True,
+            "message": "History cleared successfully"
+        })
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear history: {str(e)}")
+
+# Health check endpoint
+@router.get("/api/health")
+async def health_check():
+    """Health check endpoint for the moderation system."""
+    return JSONResponse(content={
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "components": {
+            "moderation_engine": "operational",
+            "video_analyzer": "operational",
+            "database": "operational"
+        }
+    })

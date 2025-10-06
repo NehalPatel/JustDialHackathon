@@ -1,0 +1,423 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - Video Auto-Moderation System{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h1 class="display-4 mb-3">
+            <i class="fas fa-cog me-3"></i>
+            Moderation Settings
+        </h1>
+        <p class="lead text-muted">Configure your video moderation system parameters and thresholds.</p>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-lg-8 mx-auto">
+        <!-- Main Settings Form -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-sliders-h me-2"></i>
+                    Detection Sensitivity
+                </h5>
+            </div>
+            <div class="card-body">
+                <form id="settingsForm">
+                    <div class="row">
+                        <!-- Nudity Detection -->
+                        <div class="col-md-6 mb-4">
+                            <label for="nudityThreshold" class="form-label fw-bold">
+                                <i class="fas fa-eye-slash me-2 text-danger"></i>
+                                Nudity Detection
+                            </label>
+                            <select class="form-select" id="nudityThreshold" name="nudity_sensitivity">
+                                <option value="lenient" {{ 'selected' if config.get('nudity_sensitivity') == 'lenient' else '' }}>
+                                    Lenient - Only explicit content
+                                </option>
+                                <option value="moderate" {{ 'selected' if config.get('nudity_sensitivity') == 'moderate' else '' }}>
+                                    Moderate - Suggestive content
+                                </option>
+                                <option value="strict" {{ 'selected' if config.get('nudity_sensitivity') == 'strict' else '' }}>
+                                    Strict - Any exposed skin
+                                </option>
+                            </select>
+                            <div class="form-text">
+                                Controls how sensitive the system is to nudity and adult content.
+                            </div>
+                        </div>
+
+                        <!-- Fraud Detection -->
+                        <div class="col-md-6 mb-4">
+                            <label for="fraudThreshold" class="form-label fw-bold">
+                                <i class="fas fa-shield-alt me-2 text-warning"></i>
+                                Fraud Detection
+                            </label>
+                            <select class="form-select" id="fraudThreshold" name="fraud_sensitivity">
+                                <option value="lenient" {{ 'selected' if config.get('fraud_sensitivity') == 'lenient' else '' }}>
+                                    Lenient - Obvious scams only
+                                </option>
+                                <option value="moderate" {{ 'selected' if config.get('fraud_sensitivity') == 'moderate' else '' }}>
+                                    Moderate - Suspicious patterns
+                                </option>
+                                <option value="strict" {{ 'selected' if config.get('fraud_sensitivity') == 'strict' else '' }}>
+                                    Strict - Any fraud indicators
+                                </option>
+                            </select>
+                            <div class="form-text">
+                                Determines how aggressively the system detects fraudulent content.
+                            </div>
+                        </div>
+
+                        <!-- Copyright Threshold -->
+                        <div class="col-12 mb-4">
+                            <label for="copyrightThreshold" class="form-label fw-bold">
+                                <i class="fas fa-copyright me-2 text-info"></i>
+                                Copyright Similarity Threshold
+                            </label>
+                            <div class="row align-items-center">
+                                <div class="col-md-8">
+                                    <input type="range" class="form-range" id="copyrightThreshold" 
+                                           name="copyright_threshold" min="0" max="100" 
+                                           value="{{ config.get('copyright_threshold', 60) }}">
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" id="copyrightValue" 
+                                               min="0" max="100" value="{{ config.get('copyright_threshold', 60) }}">
+                                        <span class="input-group-text">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-text">
+                                Minimum similarity percentage to flag content as potential copyright violation.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quality and Processing Options -->
+                    <hr class="my-4">
+                    <h6 class="fw-bold mb-3">
+                        <i class="fas fa-video me-2"></i>
+                        Quality & Processing Options
+                    </h6>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="rejectPoorQuality" 
+                                       name="reject_poor_quality" 
+                                       {{ 'checked' if config.get('reject_poor_quality') else '' }}>
+                                <label class="form-check-label" for="rejectPoorQuality">
+                                    <strong>Reject Poor Quality Videos</strong>
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                Automatically reject videos with poor resolution or quality.
+                            </small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="blurFaces" 
+                                       name="blur_faces" 
+                                       {{ 'checked' if config.get('blur_faces', True) else '' }}>
+                                <label class="form-check-label" for="blurFaces">
+                                    <strong>Blur Detected Faces</strong>
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                Automatically blur faces in approved videos for privacy.
+                            </small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="blurViolence" 
+                                       name="blur_violence" 
+                                       {{ 'checked' if config.get('blur_violence', True) else '' }}>
+                                <label class="form-check-label" for="blurViolence">
+                                    <strong>Blur Violent Content</strong>
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                Blur scenes containing violence or graphic content.
+                            </small>
+                        </div>
+
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="deleteRejected" 
+                                       name="delete_rejected_files" 
+                                       {{ 'checked' if config.get('delete_rejected_files') else '' }}>
+                                <label class="form-check-label" for="deleteRejected">
+                                    <strong>Delete Rejected Files</strong>
+                                </label>
+                            </div>
+                            <small class="text-muted">
+                                Automatically delete files that are rejected by moderation.
+                            </small>
+                        </div>
+                    </div>
+
+                    <!-- Save Button -->
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg" id="saveBtn">
+                            <i class="fas fa-save me-2"></i>
+                            Save Settings
+                            <div class="loading-spinner spinner-border spinner-border-sm ms-2" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-info-circle me-2"></i>
+                    System Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <h6 class="fw-bold">Detection Models</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-check text-success me-2"></i>Nudity Detection: Active</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Copyright Detection: Active</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Fraud Detection: Active</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Violence Detection: Active</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <h6 class="fw-bold">Supported Formats</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-file-video text-primary me-2"></i>MP4</li>
+                            <li><i class="fas fa-file-video text-primary me-2"></i>MOV</li>
+                            <li><i class="fas fa-file-video text-primary me-2"></i>AVI</li>
+                            <li><i class="fas fa-file-video text-primary me-2"></i>WMV, MKV, FLV</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-tools me-2"></i>
+                    Advanced Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <button class="btn btn-outline-info w-100" onclick="exportSettings()">
+                            <i class="fas fa-download me-2"></i>
+                            Export Settings
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <button class="btn btn-outline-warning w-100" onclick="resetSettings()">
+                            <i class="fas fa-undo me-2"></i>
+                            Reset to Defaults
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <button class="btn btn-outline-secondary w-100" onclick="testConfiguration()">
+                            <i class="fas fa-vial me-2"></i>
+                            Test Configuration
+                        </button>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <button class="btn btn-outline-danger w-100" onclick="clearHistory()">
+                            <i class="fas fa-trash me-2"></i>
+                            Clear History
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Confirmation Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="confirmTitle">Confirm Action</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="confirmMessage">
+                Are you sure you want to proceed?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmBtn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const settingsForm = document.getElementById('settingsForm');
+    const copyrightSlider = document.getElementById('copyrightThreshold');
+    const copyrightInput = document.getElementById('copyrightValue');
+    const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+
+    // Sync slider and input
+    copyrightSlider.addEventListener('input', (e) => {
+        copyrightInput.value = e.target.value;
+    });
+
+    copyrightInput.addEventListener('input', (e) => {
+        copyrightSlider.value = e.target.value;
+    });
+
+    // Form submission
+    settingsForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const saveBtn = document.getElementById('saveBtn');
+        saveBtn.classList.add('loading');
+        saveBtn.disabled = true;
+
+        try {
+            const formData = new FormData(settingsForm);
+            
+            const response = await fetch('/moderation/api/settings', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                showAlert('Settings saved successfully!', 'success');
+            } else {
+                showAlert(result.message || 'Failed to save settings', 'danger');
+            }
+
+        } catch (error) {
+            console.error('Settings save error:', error);
+            showAlert('Failed to save settings. Please try again.', 'danger');
+        } finally {
+            saveBtn.classList.remove('loading');
+            saveBtn.disabled = false;
+        }
+    });
+
+    function exportSettings() {
+        const settings = {
+            nudity_sensitivity: document.getElementById('nudityThreshold').value,
+            fraud_sensitivity: document.getElementById('fraudThreshold').value,
+            copyright_threshold: parseInt(document.getElementById('copyrightThreshold').value),
+            reject_poor_quality: document.getElementById('rejectPoorQuality').checked,
+            blur_faces: document.getElementById('blurFaces').checked,
+            blur_violence: document.getElementById('blurViolence').checked,
+            delete_rejected_files: document.getElementById('deleteRejected').checked,
+            exported_at: new Date().toISOString()
+        };
+
+        const blob = new Blob([JSON.stringify(settings, null, 2)], {
+            type: 'application/json'
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `moderation_settings_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showAlert('Settings exported successfully!', 'success');
+    }
+
+    function resetSettings() {
+        document.getElementById('confirmTitle').textContent = 'Reset Settings';
+        document.getElementById('confirmMessage').textContent = 
+            'Are you sure you want to reset all settings to their default values? This action cannot be undone.';
+        
+        document.getElementById('confirmBtn').onclick = async () => {
+            confirmModal.hide();
+            
+            try {
+                // Reset form to defaults
+                document.getElementById('nudityThreshold').value = 'moderate';
+                document.getElementById('fraudThreshold').value = 'strict';
+                document.getElementById('copyrightThreshold').value = 60;
+                document.getElementById('copyrightValue').value = 60;
+                document.getElementById('rejectPoorQuality').checked = false;
+                document.getElementById('blurFaces').checked = true;
+                document.getElementById('blurViolence').checked = true;
+                document.getElementById('deleteRejected').checked = false;
+                
+                // Save the reset settings
+                const formData = new FormData(settingsForm);
+                const response = await fetch('/moderation/api/settings', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('Settings reset to defaults successfully!', 'success');
+                } else {
+                    showAlert('Failed to reset settings', 'danger');
+                }
+
+            } catch (error) {
+                console.error('Reset error:', error);
+                showAlert('Failed to reset settings. Please try again.', 'danger');
+            }
+        };
+        
+        confirmModal.show();
+    }
+
+    function testConfiguration() {
+        showAlert('Configuration test feature coming soon!', 'info');
+    }
+
+    function clearHistory() {
+        document.getElementById('confirmTitle').textContent = 'Clear History';
+        document.getElementById('confirmMessage').textContent = 
+            'Are you sure you want to clear all moderation history? This will delete all analysis results and cannot be undone.';
+        
+        document.getElementById('confirmBtn').onclick = async () => {
+            confirmModal.hide();
+            
+            try {
+                const response = await fetch('/moderation/api/clear-history', {
+                    method: 'POST'
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('History cleared successfully!', 'success');
+                } else {
+                    showAlert('Failed to clear history', 'danger');
+                }
+
+            } catch (error) {
+                console.error('Clear history error:', error);
+                showAlert('Failed to clear history. Please try again.', 'danger');
+            }
+        };
+        
+        confirmModal.show();
+    }
+</script>
+{% endblock %}
