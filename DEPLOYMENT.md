@@ -5,16 +5,17 @@
 - Render.com account
 
 ## Files Added for Deployment
-- `requirements.txt` - Python dependencies (compatible versions for Python 3.10)
+- `requirements.txt` - Python dependencies (compatible versions for Python 3.13)
 - `Procfile` - Tells Render how to start your app
-- `runtime.txt` - Specifies Python version (3.10.12 for compatibility)
+- `runtime.txt` - Specifies Python version (3.13.0 for latest compatibility)
 - `.env.example` - Example environment variables
 
 ## Version Compatibility
-- **Python**: 3.10.12 (required for TensorFlow compatibility)
-- **TensorFlow**: 2.12.0 (compatible with Python 3.10)
-- **PyTorch**: 2.0.1 (stable version)
-- **NumPy**: 1.23.5 (required by TensorFlow <1.24)
+- **Python**: 3.13.0 (latest stable version)
+- **TensorFlow**: 2.17.0 (latest version compatible with Python 3.13)
+- **PyTorch**: 2.4.0 (latest stable version)
+- **Pillow**: 10.4.0 (compatible with Python 3.13)
+- **NumPy**: 1.26.4 (latest compatible version)
 - All package versions have been tested for compatibility
 
 ## Render.com Setup Steps
