@@ -8,7 +8,7 @@ node_modules
 moderation.db
 
 # Uploads (for production, use cloud storage)
-uploads/
+uploads/*
 !uploads/.gitkeep
 
 # Python
